@@ -1,0 +1,37 @@
+name: 'initramfs builder'
+
+on: [ push ]
+
+env:
+  REPO: https://git.buildroot.net/buildroot
+  TAG: 2023.05.3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        TARGET: [ 'x86-64' ]
+    steps:
+      - run: |
+          curl -L https://raw.githubusercontent.com/apache/flink/master/tools/azure-pipelines/free_disk_space.sh | bash
+      - uses: actions/checkout@v3
+      - name: prepare
+        run: |
+          git clone -b ${TAG} --single-branch --filter=blob:none ${REPO} buildroot
+          cp ${{ github.workspace }}/config/${{ matrix.TARGET }}.config buildroot/.config
+      - name: compile
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 180
+          max_attempts: 3
+          command: |
+            cd buildroot
+            make -j$(nproc)
+          new_command_on_retry: |
+            cd buildroot
+            make V=1
+      - uses: actions/upload-artifact@v3
+        with:
+          name: buildroot-${{ matrix.TARGET }}
+          path: buildroot/output/images
